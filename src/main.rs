@@ -7,7 +7,7 @@ use amethyst::{
     ecs::*,
 };
 
-use nalgebra::Vector2;
+use nalgebra::{Vector2, Point2};
 
 struct Example;
 
@@ -43,11 +43,12 @@ type Vec2 = Vector2<f32>;
 
 // The very vanilla pos/vel components, as this doesn't hook into nphysics
 
-struct Pos(Vec2);
+struct Pos(Point2<f32>);
 
 impl Component for Pos {
     type Storage = VecStorage<Self>;
 }
+
 
 // The velocity also determines the heading!
 struct Vel(Vec2);
@@ -56,18 +57,125 @@ impl Component for Vel {
     type Storage = VecStorage<Self>;
 }
 
+struct Closest(Vec<Entity>);
+
+impl Component for Closest {
+    type Storage = VecStorage<Self>;
+}
+
+struct SeparationVector(Vec2);
+
+impl Component for SeparationVector {
+    type Storage = VecStorage<Self>;
+}
+
+struct CohesionVector(Vec2);
+
+impl Component for CohesionVector {
+    type Storage = VecStorage<Self>;
+}
+
+struct AlignmentVector(Vec2);
+
+impl Component for AlignmentVector {
+    type Storage = VecStorage<Self>;
+}
+
 // Systems
+
+struct ClosenessThreshold(f32);
+
+impl Default for ClosenessThreshold {
+    fn default() -> Self {
+        ClosenessThreshold(10.0)
+    }
+}
+
+/// System that computes all the entities within a threshold.
+struct ComputeClose;
+
+impl <'a> System<'a> for ComputeClose {
+
+    type SystemData =
+        ( Entities<'a>
+        , ReadStorage<'a, Pos>
+        , WriteStorage<'a, Closest>
+        , Read<'a, ClosenessThreshold>
+        );
+
+    fn run(&mut self, (entities, posdata, mut closedata, threshold): Self::SystemData) {
+        for (entity, position, close) in (&entities, &posdata, &mut closedata).join() {
+            close.0.clear();
+            for (check_entity, check_position) in (&entities, &posdata).join() {
+                if check_entity != entity {
+                    let dist: f32 = nalgebra::distance(&position.0, &check_position.0);
+                    if dist <= threshold.0 {
+                        close.0.push(check_entity);
+                    }
+                }
+            }
+        }
+    }
+}
+
+struct CentreOfFlockValue(Point2<f32>);
+
+/// Computes the centre of the flock, where flock is defined as all boids in the program.
+struct CentreOfFlock;
+
+impl <'a> System<'a> for CentreOfFlock {
+
+    type SystemData = (ReadStorage<'a, Pos>, Write<'a, Option<CentreOfFlockValue>>);
+
+    fn run(&mut self, (posdata, mut centre_of_mass): Self::SystemData) {
+        let mut ongoing = (0, Vec2::new(0.0, 0.0));
+        for pos in posdata.join() {
+            ongoing.0 += 1;
+            ongoing.1 += pos.0.coords;
+        }
+        let total = if ongoing.0 == 0 {ongoing.1} else {ongoing.1 / (ongoing.0 as f32)};
+        *centre_of_mass = Some(CentreOfFlockValue(Point2::from(total)));
+    }
+}
+
+struct Separation;
+
+impl <'a> System<'a> for Separation {
+    type SystemData =
+        ( Entities<'a>
+        , ReadStorage<'a, Closest>
+        , WriteStorage<'a, SeparationVector>
+        );
+
+    fn run(&mut self, (entities, closedata, mut sepdata): Self::SystemData) {
+
+    }
+}
 
 struct Cohesion;
 
 impl <'a> System<'a> for Cohesion {
+    type SystemData =
+        ( Entities<'a>
+        , ReadStorage<'a, Closest>
+        , WriteStorage<'a, CohesionVector>
+        );
 
-    type SystemData = (ReadStorage<'a, Pos>, ReadStorage<'a, Vel>);
+    fn run(&mut self, (entities, closedata, mut cohdata): Self::SystemData) {
 
-    fn run(&mut self, data: Self::SystemData) {
-        
     }
-
 }
 
-//
+struct Alignment;
+
+impl <'a> System<'a> for Alignment {
+    type SystemData =
+        ( Entities<'a>
+        , ReadStorage<'a, Closest>
+        , WriteStorage<'a, AlignmentVector>
+        );
+
+    fn run(&mut self, (entities, closedata, mut alidata): Self::SystemData) {
+
+    }
+}
