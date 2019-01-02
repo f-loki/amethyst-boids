@@ -8,10 +8,20 @@ use amethyst::{
 };
 use nalgebra::{Vector2, Point2};
 use rayon::iter::ParallelIterator;
+use amethyst::core::SystemBundle;
 
 struct Example;
 
-impl SimpleState for Example {}
+impl SimpleState for Example {
+    fn on_start(&mut self, data: StateData<'_, GameData<'_, '_>>) {
+        data.world.register::<Pos>();
+        data.world.register::<Vel>();
+        data.world.register::<Closest>();
+        data.world.register::<CohesionVector>();
+        data.world.register::<AlignmentVector>();
+        data.world.register::<SeparationVector>();
+    }
+}
 
 fn main() -> amethyst::Result<()> {
     amethyst::start_logger(Default::default());
@@ -29,7 +39,9 @@ fn main() -> amethyst::Result<()> {
     );
 
     let game_data =
-        GameDataBuilder::default().with_bundle(RenderBundle::new(pipe, Some(config)))?;
+        GameDataBuilder::default()
+        //.with_bundle(RenderBundle::new(pipe, Some(config)))?
+        .with_bundle(BoidsBundle)?;
     let mut game = Application::new("./", Example, game_data)?;
 
     game.run();
@@ -43,6 +55,7 @@ type Vec2 = Vector2<f32>;
 
 // The very vanilla pos/vel components, as this doesn't hook into nphysics
 
+#[derive(Debug)]
 struct Pos(Point2<f32>);
 
 impl Component for Pos {
@@ -50,6 +63,7 @@ impl Component for Pos {
 }
 
 
+#[derive(Debug)]
 // The velocity also determines the heading!
 struct Vel(Vec2);
 
@@ -57,24 +71,28 @@ impl Component for Vel {
     type Storage = VecStorage<Self>;
 }
 
+#[derive(Debug)]
 struct Closest(Vec<Entity>);
 
 impl Component for Closest {
     type Storage = VecStorage<Self>;
 }
 
+#[derive(Debug)]
 struct SeparationVector(Vec2);
 
 impl Component for SeparationVector {
     type Storage = VecStorage<Self>;
 }
 
+#[derive(Debug)]
 struct CohesionVector(Vec2);
 
 impl Component for CohesionVector {
     type Storage = VecStorage<Self>;
 }
 
+#[derive(Debug)]
 struct AlignmentVector(Vec2);
 
 impl Component for AlignmentVector {
@@ -83,6 +101,7 @@ impl Component for AlignmentVector {
 
 // Systems
 
+#[derive(Debug)]
 struct ClosenessThreshold(f32);
 
 impl Default for ClosenessThreshold {
@@ -116,6 +135,7 @@ impl <'a> System<'a> for ComputeClose {
     }
 }
 
+#[derive(Debug)]
 struct CentreOfFlockValue(Point2<f32>);
 
 /// Computes the centre of the flock, where flock is defined as all boids in the program.
@@ -126,7 +146,7 @@ impl <'a> System<'a> for CentreOfFlock {
     type SystemData = (ReadStorage<'a, Pos>, Write<'a, Option<CentreOfFlockValue>>);
 
     fn run(&mut self, (posdata, mut centre_of_mass): Self::SystemData) {
-        let mut ongoing = (0, Vec2::new(0.0, 0.0));
+        let mut ongoing = (0, Vec2::zeros());
         for pos in posdata.join() {
             ongoing.0 += 1;
             ongoing.1 += pos.0.coords;
@@ -136,6 +156,7 @@ impl <'a> System<'a> for CentreOfFlock {
     }
 }
 
+#[derive(Debug)]
 struct SeparationDistance(f32);
 
 impl Default for SeparationDistance {
@@ -157,19 +178,15 @@ impl <'a> System<'a> for Separation {
 
     fn run(&mut self, (entities, septhresh, closedata, posdata, mut sepdata): Self::SystemData) {
         for (closest, pos, separation) in (&closedata, &posdata, &mut sepdata).join() {
-            if !closest.0.is_empty() {
-                *separation = SeparationVector(closest.0.iter().filter_map(|close| {
-                    posdata.join().get(*close, &entities).and_then(|a| {
-                        if nalgebra::distance(&a.0, &pos.0) <= septhresh.0 {
-                            Some(pos.0 - a.0)
-                        } else {
-                            None
-                        }
-                    })
-                }).fold(Vec2::zeros(), |acc, a| acc - a));
-            } else {
-                separation.0 *= 0.0;
-            }
+            separation.0 = closest.0.iter().filter_map(|close| {
+                posdata.join().get(*close, &entities).and_then(|a| {
+                    if nalgebra::distance(&a.0, &pos.0) <= septhresh.0 {
+                        Some(pos.0 - a.0)
+                    } else {
+                        None
+                    }
+                })
+            }).fold(Vec2::zeros(), |acc, a| acc - a);
         }
     }
 }
@@ -222,18 +239,22 @@ impl <'a> System<'a> for Alignment {
     }
 }
 
-struct ParMovement;
+struct ApplyAdjustments;
 
-impl <'a> System<'a> for ParMovement {
+impl <'a> System<'a> for ApplyAdjustments {
     type SystemData =
-        ( ReadStorage<'a, Vel>
-        , WriteStorage<'a, Pos>
+        ( WriteStorage<'a, Vel>
+        , ReadStorage<'a, SeparationVector>
+        , ReadStorage<'a, CohesionVector>
+        , ReadStorage<'a, AlignmentVector>
     );
 
-    fn run(&mut self, (veldata, mut posdata): Self::SystemData) {
-        (&veldata, &mut posdata).par_join().for_each(|(vel, pos)| {
-            pos.0.coords += vel.0
-        })
+    fn run(&mut self, (mut veldata, sepdata, cohdata, alidata): Self::SystemData) {
+        (&mut veldata, &sepdata, &cohdata, &alidata).par_join().for_each(
+            |(vel, separation, cohesion, alignment)| {
+                vel.0 += (separation.0 * 1.0) + (cohesion.0 * 0.01) + (alignment.0 * 1.0);
+            }
+        );
     }
 }
 
@@ -246,8 +267,26 @@ impl <'a> System<'a> for Movement {
     );
 
     fn run(&mut self, (veldata, mut posdata): Self::SystemData) {
-        (&veldata, &mut posdata).join().for_each(|(vel, pos)| {
+        (&veldata, &mut posdata).par_join().for_each(|(vel, pos)| {
             pos.0.coords += vel.0
-        })
+        });
     }
+}
+
+struct BoidsBundle;
+
+impl <'a, 'b> SystemBundle<'a, 'b> for BoidsBundle {
+    fn build(self, builder: &mut DispatcherBuilder<'a, 'b>) -> amethyst::core::bundle::Result<()> {
+        builder.add(ComputeClose, "compute_close", &[]);
+        builder.add(Separation, "separation", &["compute_close"]);
+        builder.add(Alignment, "alignment", &["compute_close"]);
+        builder.add(Cohesion, "cohesion", &["compute_close"]);
+        builder.add(ApplyAdjustments, "apply_adjustments", &["separation", "alignment", "cohesion"]);
+        builder.add(Movement, "par_movement", &["apply_adjustments"]);
+        Ok(())
+    }
+}
+
+fn make_a_boid(world: &mut World, position: Pos, vel: Vel) {
+    
 }
