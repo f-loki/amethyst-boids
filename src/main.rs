@@ -9,6 +9,7 @@ use amethyst::{
 use nalgebra::{Vector2, Point2};
 use rayon::iter::ParallelIterator;
 use amethyst::core::SystemBundle;
+use rand::prelude::*;
 
 struct Example;
 
@@ -20,6 +21,13 @@ impl SimpleState for Example {
         data.world.register::<CohesionVector>();
         data.world.register::<AlignmentVector>();
         data.world.register::<SeparationVector>();
+        data.world.add_resource(ClosenessThreshold(10.0));
+        data.world.add_resource(SeparationDistance(2.0));
+        data.world.add_resource(CentreOfFlockValue(Point2::origin()));
+        let mut rng = rand::thread_rng();
+        for _ in 0..40 {
+            make_a_boid(data.world, Pos(Point2::origin()), Vel(Vec2::new(rng.gen_range(-0.75, 0.75), rng.gen_range(-0.75, 0.75))));
+        }
     }
 }
 
@@ -40,7 +48,7 @@ fn main() -> amethyst::Result<()> {
 
     let game_data =
         GameDataBuilder::default()
-        //.with_bundle(RenderBundle::new(pipe, Some(config)))?
+        .with_bundle(RenderBundle::new(pipe, Some(config)))?
         .with_bundle(BoidsBundle)?;
     let mut game = Application::new("./", Example, game_data)?;
 
@@ -126,9 +134,10 @@ impl <'a> System<'a> for ComputeClose {
         for (entity, position, close) in (&entities, &posdata, &mut closedata).join() {
             close.0.clear();
             for (check_entity, check_position) in (&entities, &posdata).join() {
-                if check_entity != entity && nalgebra::distance(&position.0, &check_position.0) <= threshold.0 {
+                if close.0.len() >= 8 {
+                    break;
+                } else if check_entity != entity && nalgebra::distance(&position.0, &check_position.0) <= threshold.0 {
                     close.0.push(check_entity);
-
                 }
             }
         }
@@ -253,6 +262,7 @@ impl <'a> System<'a> for ApplyAdjustments {
         (&mut veldata, &sepdata, &cohdata, &alidata).par_join().for_each(
             |(vel, separation, cohesion, alignment)| {
                 vel.0 += (separation.0 * 1.0) + (cohesion.0 * 0.01) + (alignment.0 * 1.0);
+                vel.0.normalize_mut();
             }
         );
     }
@@ -268,8 +278,18 @@ impl <'a> System<'a> for Movement {
 
     fn run(&mut self, (veldata, mut posdata): Self::SystemData) {
         (&veldata, &mut posdata).par_join().for_each(|(vel, pos)| {
-            pos.0.coords += vel.0
+            pos.0.coords += vel.0 * (1. / 60.0)
         });
+    }
+}
+
+struct ReportEndCycle;
+
+impl <'a> System<'a> for ReportEndCycle {
+    type SystemData = Read<'a, Option<CentreOfFlockValue>>;
+
+    fn run(&mut self, centre: Self::SystemData) {
+        println!("Flock centre: {:?}", *centre);
     }
 }
 
@@ -282,11 +302,21 @@ impl <'a, 'b> SystemBundle<'a, 'b> for BoidsBundle {
         builder.add(Alignment, "alignment", &["compute_close"]);
         builder.add(Cohesion, "cohesion", &["compute_close"]);
         builder.add(ApplyAdjustments, "apply_adjustments", &["separation", "alignment", "cohesion"]);
-        builder.add(Movement, "par_movement", &["apply_adjustments"]);
+        builder.add(Movement, "movement", &["apply_adjustments"]);
+        builder.add(CentreOfFlock, "centre_of_flock", &[]);
+        builder.add(ReportEndCycle, "report_end", &["movement", "centre_of_flock"]);
         Ok(())
     }
 }
 
-fn make_a_boid(world: &mut World, position: Pos, vel: Vel) {
-    
+fn make_a_boid(world: &mut World, position: Pos, velocity: Vel) {
+    world
+        .create_entity()
+        .with(position)
+        .with(velocity)
+        .with(Closest(Vec::new()))
+        .with(SeparationVector(Vec2::zeros()))
+        .with(CohesionVector(Vec2::zeros()))
+        .with(AlignmentVector(Vec2::zeros()))
+        .build();
 }
