@@ -158,7 +158,7 @@ impl <'a> System<'a> for Separation {
     fn run(&mut self, (entities, septhresh, closedata, posdata, mut sepdata): Self::SystemData) {
         for (closest, pos, separation) in (&closedata, &posdata, &mut sepdata).join() {
             if !closest.0.is_empty() {
-                closest.0.iter().filter_map(|close| {
+                *separation = SeparationVector(closest.0.iter().filter_map(|close| {
                     posdata.join().get(*close, &entities).and_then(|a| {
                         if nalgebra::distance(&a.0, &pos.0) <= septhresh.0 {
                             Some(pos.0 - a.0)
@@ -166,7 +166,7 @@ impl <'a> System<'a> for Separation {
                             None
                         }
                     })
-                }).fold(Vec2::zeros(), |acc, a| acc - a);
+                }).fold(Vec2::zeros(), |acc, a| acc - a));
             } else {
                 separation.0 *= 0.0;
             }
