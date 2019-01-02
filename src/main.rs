@@ -6,8 +6,8 @@ use amethyst::{
     utils::application_root_dir,
     ecs::*,
 };
-
 use nalgebra::{Vector2, Point2};
+use rayon::iter::ParallelIterator;
 
 struct Example;
 
@@ -101,17 +101,15 @@ impl <'a> System<'a> for ComputeClose {
         , ReadStorage<'a, Pos>
         , WriteStorage<'a, Closest>
         , Read<'a, ClosenessThreshold>
-        );
+    );
 
     fn run(&mut self, (entities, posdata, mut closedata, threshold): Self::SystemData) {
         for (entity, position, close) in (&entities, &posdata, &mut closedata).join() {
             close.0.clear();
             for (check_entity, check_position) in (&entities, &posdata).join() {
-                if check_entity != entity {
-                    let dist: f32 = nalgebra::distance(&position.0, &check_position.0);
-                    if dist <= threshold.0 {
-                        close.0.push(check_entity);
-                    }
+                if check_entity != entity && nalgebra::distance(&position.0, &check_position.0) <= threshold.0 {
+                    close.0.push(check_entity);
+
                 }
             }
         }
@@ -145,7 +143,7 @@ impl <'a> System<'a> for Separation {
         ( Entities<'a>
         , ReadStorage<'a, Closest>
         , WriteStorage<'a, SeparationVector>
-        );
+    );
 
     fn run(&mut self, (entities, closedata, mut sepdata): Self::SystemData) {
 
@@ -158,11 +156,20 @@ impl <'a> System<'a> for Cohesion {
     type SystemData =
         ( Entities<'a>
         , ReadStorage<'a, Closest>
+        , ReadStorage<'a, Pos>
         , WriteStorage<'a, CohesionVector>
-        );
+    );
 
-    fn run(&mut self, (entities, closedata, mut cohdata): Self::SystemData) {
-
+    fn run(&mut self, (entities, closedata, posdata, mut cohdata): Self::SystemData) {
+        for (closest, pos, cohesion) in (&closedata, &posdata, &mut cohdata).join() {
+            if !closest.0.is_empty() {
+                cohesion.0 = closest.0.iter().filter_map(|close| {
+                    (posdata).join().get(*close, &entities).map(|a| a.0.coords + pos.0.coords)
+                }).sum::<Vec2>() / closest.0.len() as f32 - pos.0.coords;
+            } else {
+                cohesion.0 *= 0.0;
+            }
+        }
     }
 }
 
@@ -173,9 +180,39 @@ impl <'a> System<'a> for Alignment {
         ( Entities<'a>
         , ReadStorage<'a, Closest>
         , WriteStorage<'a, AlignmentVector>
-        );
+    );
 
     fn run(&mut self, (entities, closedata, mut alidata): Self::SystemData) {
 
+    }
+}
+
+struct ParMovement;
+
+impl <'a> System<'a> for ParMovement {
+    type SystemData =
+        ( ReadStorage<'a, Vel>
+        , WriteStorage<'a, Pos>
+    );
+
+    fn run(&mut self, (veldata, mut posdata): Self::SystemData) {
+        (&veldata, &mut posdata).par_join().for_each(|(vel, pos)| {
+            pos.0.coords += vel.0
+        })
+    }
+}
+
+struct Movement;
+
+impl <'a> System<'a> for Movement {
+    type SystemData =
+        ( ReadStorage<'a, Vel>
+        , WriteStorage<'a, Pos>
+    );
+
+    fn run(&mut self, (veldata, mut posdata): Self::SystemData) {
+        (&veldata, &mut posdata).join().for_each(|(vel, pos)| {
+            pos.0.coords += vel.0
+        })
     }
 }
