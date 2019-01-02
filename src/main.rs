@@ -136,17 +136,41 @@ impl <'a> System<'a> for CentreOfFlock {
     }
 }
 
+struct SeparationDistance(f32);
+
+impl Default for SeparationDistance {
+    fn default() -> Self {
+        SeparationDistance(0.0)
+    }
+}
+
 struct Separation;
 
 impl <'a> System<'a> for Separation {
     type SystemData =
         ( Entities<'a>
+        , Read<'a, SeparationDistance>
         , ReadStorage<'a, Closest>
+        , ReadStorage<'a, Pos>
         , WriteStorage<'a, SeparationVector>
     );
 
-    fn run(&mut self, (entities, closedata, mut sepdata): Self::SystemData) {
-
+    fn run(&mut self, (entities, septhresh, closedata, posdata, mut sepdata): Self::SystemData) {
+        for (closest, pos, separation) in (&closedata, &posdata, &mut sepdata).join() {
+            if !closest.0.is_empty() {
+                closest.0.iter().filter_map(|close| {
+                    posdata.join().get(*close, &entities).and_then(|a| {
+                        if nalgebra::distance(&a.0, &pos.0) <= septhresh.0 {
+                            Some(pos.0 - a.0)
+                        } else {
+                            None
+                        }
+                    })
+                }).fold(Vec2::zeros(), |acc, a| acc - a);
+            } else {
+                separation.0 *= 0.0;
+            }
+        }
     }
 }
 
@@ -163,8 +187,10 @@ impl <'a> System<'a> for Cohesion {
     fn run(&mut self, (entities, closedata, posdata, mut cohdata): Self::SystemData) {
         for (closest, pos, cohesion) in (&closedata, &posdata, &mut cohdata).join() {
             if !closest.0.is_empty() {
+                // An amalgam of mathematics, that supposedly produces a vector
+                // that shoves towards the centre of the nearby flockmates
                 cohesion.0 = closest.0.iter().filter_map(|close| {
-                    (posdata).join().get(*close, &entities).map(|a| a.0.coords + pos.0.coords)
+                    posdata.join().get(*close, &entities).map(|a| a.0.coords + pos.0.coords)
                 }).sum::<Vec2>() / closest.0.len() as f32 - pos.0.coords;
             } else {
                 cohesion.0 *= 0.0;
@@ -179,11 +205,20 @@ impl <'a> System<'a> for Alignment {
     type SystemData =
         ( Entities<'a>
         , ReadStorage<'a, Closest>
+        , ReadStorage<'a, Vel>
         , WriteStorage<'a, AlignmentVector>
     );
 
-    fn run(&mut self, (entities, closedata, mut alidata): Self::SystemData) {
-
+    fn run(&mut self, (entities, closedata, veldata, mut alidata): Self::SystemData) {
+        for (closest, vel, alignment) in (&closedata, &veldata, &mut alidata).join() {
+            if !closest.0.is_empty() {
+                alignment.0 = closest.0.iter().filter_map(|close| {
+                    veldata.join().get(*close, &entities).map(|a| a.0)
+                }).sum::<Vec2>() / closest.0.len() as f32 - vel.0;
+            } else {
+                alignment.0 *= 0.0;
+            }
+        }
     }
 }
 
