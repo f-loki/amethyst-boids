@@ -2,11 +2,12 @@ extern crate amethyst;
 
 use amethyst::{
     prelude::*,
-    renderer::{DisplayConfig, DrawFlat, Pipeline, PosNormTex, RenderBundle, Stage},
+    renderer::{DisplayConfig, DrawFlat, DrawShaded, Pipeline, PosNormTex, PosTex, RenderBundle, Stage, Shape, MeshHandle, Camera, Material, Projection, Light, SunLight, MaterialDefaults},
     utils::application_root_dir,
     ecs::*,
+    core::transform::{Transform, bundle::TransformBundle},
 };
-use nalgebra::{Vector2, Point2};
+use nalgebra::{Vector2, Vector3, Point2, UnitQuaternion, Unit, Translation};
 use rayon::iter::ParallelIterator;
 use amethyst::core::SystemBundle;
 use rand::prelude::*;
@@ -15,18 +16,18 @@ struct Example;
 
 impl SimpleState for Example {
     fn on_start(&mut self, data: StateData<'_, GameData<'_, '_>>) {
-        data.world.register::<Pos>();
-        data.world.register::<Vel>();
-        data.world.register::<Closest>();
-        data.world.register::<CohesionVector>();
-        data.world.register::<AlignmentVector>();
-        data.world.register::<SeparationVector>();
         data.world.add_resource(ClosenessThreshold(10.0));
         data.world.add_resource(SeparationDistance(2.0));
         data.world.add_resource(CentreOfFlockValue(Point2::origin()));
+        let cone = Shape::Cone(4);
+        let handle: MeshHandle = cone.upload::<Vec<PosTex>, ()>(Some((1., 1., 1.)), data.world.system_data(), ());
         let mut rng = rand::thread_rng();
-        for _ in 0..40 {
-            make_a_boid(data.world, Pos(Point2::origin()), Vel(Vec2::new(rng.gen_range(-0.75, 0.75), rng.gen_range(-0.75, 0.75))));
+        data.world.create_entity().with(Camera::from(Projection::orthographic(0.0, 100.0, 100.0, 0.0))).with(Transform::default()).build();
+        data.world.create_entity().with(Light::Sun(SunLight::default())).with(Transform::default()).build();
+        // TODO: figure out why there's a missing texture error.
+        let material = data.world.read_resource::<MaterialDefaults>().0.clone();
+        for _ in 0..1 {
+            make_a_boid(data.world, Pos(Point2::origin()), Vel(Vec2::new(rng.gen_range(-0.75, 0.75), rng.gen_range(-0.75, 0.75))), handle.clone(), material.clone());
         }
     }
 }
@@ -43,12 +44,13 @@ fn main() -> amethyst::Result<()> {
     let pipe = Pipeline::build().with_stage(
         Stage::with_backbuffer()
             .clear_target([0.00196, 0.23726, 0.21765, 1.0], 1.0)
-            .with_pass(DrawFlat::<PosNormTex>::new()),
+            .with_pass(DrawShaded::<PosNormTex>::new())
     );
 
     let game_data =
         GameDataBuilder::default()
         .with_bundle(RenderBundle::new(pipe, Some(config)))?
+        .with_bundle(TransformBundle::new())?
         .with_bundle(BoidsBundle)?;
     let mut game = Application::new("./", Example, game_data)?;
 
@@ -134,10 +136,11 @@ impl <'a> System<'a> for ComputeClose {
         for (entity, position, close) in (&entities, &posdata, &mut closedata).join() {
             close.0.clear();
             for (check_entity, check_position) in (&entities, &posdata).join() {
-                if close.0.len() >= 8 {
-                    break;
-                } else if check_entity != entity && nalgebra::distance(&position.0, &check_position.0) <= threshold.0 {
+                if check_entity != entity && nalgebra::distance(&position.0, &check_position.0) <= threshold.0 {
                     close.0.push(check_entity);
+                    if close.0.len() >= 8 {
+                        break;
+                    }
                 }
             }
         }
@@ -293,6 +296,45 @@ impl <'a> System<'a> for ReportEndCycle {
     }
 }
 
+struct SyncWithTransform;
+
+impl <'a> System<'a> for SyncWithTransform {
+    type SystemData =
+        ( WriteStorage<'a, Transform>
+        , ReadStorage<'a, Pos>
+        , ReadStorage<'a, Vel>
+    );
+
+    fn run(&mut self, (mut transformdata, posdata, veldata): Self::SystemData) {
+        for (transform, pos, vel) in (&mut transformdata, &posdata, &veldata).join() {
+            let t_pos = Vector3::new(pos.0.x, pos.0.y,0.0);
+            let rot = UnitQuaternion::from_axis_angle(&Unit::new_normalize(Vector3::new(vel.0.x, vel.0.y, 0.0)), 0.0);
+            transform.set_position(t_pos);
+            transform.set_rotation(rot);
+        }
+    }
+}
+
+struct SyncCameraWithCentre;
+
+impl <'a> System<'a> for SyncCameraWithCentre {
+    type SystemData =
+        ( WriteStorage<'a, Transform>
+        , ReadStorage<'a, Camera>
+        , Read<'a, Option<CentreOfFlockValue>>
+    );
+
+    fn run(&mut self, (mut transdata, cameradata, flockval_opt): Self::SystemData) {
+        if let Some(ref flockval) = *flockval_opt {
+            for (transform, camera) in (&mut transdata, &cameradata).join() {
+                let transform_mut = transform.translation_mut();
+                transform_mut.x = flockval.0.coords.x;
+                transform_mut.y = flockval.0.coords.y;
+            }
+        }
+    }
+}
+
 struct BoidsBundle;
 
 impl <'a, 'b> SystemBundle<'a, 'b> for BoidsBundle {
@@ -303,13 +345,20 @@ impl <'a, 'b> SystemBundle<'a, 'b> for BoidsBundle {
         builder.add(Cohesion, "cohesion", &["compute_close"]);
         builder.add(ApplyAdjustments, "apply_adjustments", &["separation", "alignment", "cohesion"]);
         builder.add(Movement, "movement", &["apply_adjustments"]);
+        builder.add(SyncWithTransform, "sync_with_transform", &["movement"]);
         builder.add(CentreOfFlock, "centre_of_flock", &[]);
-        builder.add(ReportEndCycle, "report_end", &["movement", "centre_of_flock"]);
+        builder.add(SyncCameraWithCentre, "sync_camera_with_centre", &["centre_of_flock"]);
+        builder.add(ReportEndCycle, "report_end", &["movement", "centre_of_flock", "sync_with_transform", "sync_camera_with_centre"]);
         Ok(())
     }
 }
 
-fn make_a_boid(world: &mut World, position: Pos, velocity: Vel) {
+fn make_a_boid(world: &mut World, position: Pos, velocity: Vel, mesh_handle: MeshHandle, material: Material) {
+    let transform = {
+        let translation = Translation::from(Vector3::new(position.0.x, position.0.y, 0.0));
+        let rotation = UnitQuaternion::from_axis_angle(&Unit::new_normalize(Vector3::new(velocity.0.x, velocity.0.y, 0.0)), 0.0);
+        Transform::new(translation, rotation, Vector3::new(1.0, 1.0, 1.0))
+    };
     world
         .create_entity()
         .with(position)
@@ -318,5 +367,8 @@ fn make_a_boid(world: &mut World, position: Pos, velocity: Vel) {
         .with(SeparationVector(Vec2::zeros()))
         .with(CohesionVector(Vec2::zeros()))
         .with(AlignmentVector(Vec2::zeros()))
+        .with(transform)
+        .with(mesh_handle)
+        .with(material)
         .build();
 }
