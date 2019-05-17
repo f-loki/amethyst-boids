@@ -2,7 +2,8 @@ extern crate amethyst;
 
 use amethyst::{
     prelude::*,
-    renderer::{DisplayConfig, DrawFlat, DrawShaded, Pipeline, PosNormTex, PosTex, RenderBundle, Stage, Shape, MeshHandle, Camera, Material, Projection, Light, SunLight, MaterialDefaults},
+    assets::{AssetStorage, Loader, Handle, Asset, ProgressCounter},
+    renderer::{DisplayConfig, DrawFlat, DrawShaded, Pipeline, PosNormTex, PosTex, RenderBundle, Stage, Shape, MeshHandle, Camera, Material, Projection, Light, SunLight, MaterialDefaults, ObjFormat, Mesh},
     utils::application_root_dir,
     ecs::*,
     core::transform::{Transform, bundle::TransformBundle},
@@ -19,15 +20,17 @@ impl SimpleState for Example {
         data.world.add_resource(ClosenessThreshold(10.0));
         data.world.add_resource(SeparationDistance(2.0));
         data.world.add_resource(CentreOfFlockValue(Point2::origin()));
-        let cone = Shape::Cone(4);
-        let handle: MeshHandle = cone.upload::<Vec<PosTex>, ()>(Some((1., 1., 1.)), data.world.system_data(), ());
+        let mut progress = ProgressCounter::new();
+        let handle = {
+            let meshstore = data.world.write_resource::<AssetStorage<Mesh>>();
+            let loader = data.world.read_resource::<Loader>();
+            loader.load("resources/boid.obj", ObjFormat, (), &mut progress, &meshstore)
+        };
         let mut rng = rand::thread_rng();
         data.world.create_entity().with(Camera::from(Projection::orthographic(0.0, 100.0, 100.0, 0.0))).with(Transform::default()).build();
         data.world.create_entity().with(Light::Sun(SunLight::default())).with(Transform::default()).build();
-        // TODO: figure out why there's a missing texture error.
-        let material = data.world.read_resource::<MaterialDefaults>().0.clone();
-        for _ in 0..1 {
-            make_a_boid(data.world, Pos(Point2::origin()), Vel(Vec2::new(rng.gen_range(-0.75, 0.75), rng.gen_range(-0.75, 0.75))), handle.clone(), material.clone());
+        for _ in 0..5 {
+            make_a_boid(data.world, Pos(Point2::origin()), Vel(Vec2::new(rng.gen_range(-5.75, 5.75), rng.gen_range(-5.75, 5.75))), handle.clone());
         }
     }
 }
@@ -326,7 +329,7 @@ impl <'a> System<'a> for SyncCameraWithCentre {
 
     fn run(&mut self, (mut transdata, cameradata, flockval_opt): Self::SystemData) {
         if let Some(ref flockval) = *flockval_opt {
-            for (transform, camera) in (&mut transdata, &cameradata).join() {
+            for (transform, _) in (&mut transdata, &cameradata).join() {
                 let transform_mut = transform.translation_mut();
                 transform_mut.x = flockval.0.coords.x;
                 transform_mut.y = flockval.0.coords.y;
@@ -348,12 +351,12 @@ impl <'a, 'b> SystemBundle<'a, 'b> for BoidsBundle {
         builder.add(SyncWithTransform, "sync_with_transform", &["movement"]);
         builder.add(CentreOfFlock, "centre_of_flock", &[]);
         builder.add(SyncCameraWithCentre, "sync_camera_with_centre", &["centre_of_flock"]);
-        builder.add(ReportEndCycle, "report_end", &["movement", "centre_of_flock", "sync_with_transform", "sync_camera_with_centre"]);
+        // builder.add(ReportEndCycle, "report_end", &["movement", "centre_of_flock", "sync_with_transform", "sync_camera_with_centre"]);
         Ok(())
     }
 }
 
-fn make_a_boid(world: &mut World, position: Pos, velocity: Vel, mesh_handle: MeshHandle, material: Material) {
+fn make_a_boid<A: Asset>(world: &mut World, position: Pos, velocity: Vel, handle: Handle<A>) {
     let transform = {
         let translation = Translation::from(Vector3::new(position.0.x, position.0.y, 0.0));
         let rotation = UnitQuaternion::from_axis_angle(&Unit::new_normalize(Vector3::new(velocity.0.x, velocity.0.y, 0.0)), 0.0);
@@ -368,7 +371,6 @@ fn make_a_boid(world: &mut World, position: Pos, velocity: Vel, mesh_handle: Mes
         .with(CohesionVector(Vec2::zeros()))
         .with(AlignmentVector(Vec2::zeros()))
         .with(transform)
-        .with(mesh_handle)
-        .with(material)
+        .with(handle)
         .build();
 }
