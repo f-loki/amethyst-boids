@@ -1,8 +1,9 @@
 extern crate amethyst;
+mod loadassets;
 
 use amethyst::{
     prelude::*,
-    assets::{AssetStorage, Loader, Handle, Asset, ProgressCounter},
+    assets::{AssetStorage, Loader, Handle, Asset, ProgressCounter, Completion},
     renderer::{DisplayConfig, DrawFlat, DrawShaded, Pipeline, PosNormTex, PosTex, RenderBundle, Stage, Shape, MeshHandle, Camera, Material, Projection, Light, SunLight, MaterialDefaults, ObjFormat, Mesh},
     utils::application_root_dir,
     ecs::*,
@@ -13,24 +14,65 @@ use rayon::iter::ParallelIterator;
 use amethyst::core::SystemBundle;
 use rand::prelude::*;
 
-struct Example;
+struct LoadAssets {
+    progress: ProgressCounter,
+    handle: Option<Handle<Mesh>>
+}
+
+impl LoadAssets {
+    fn new() -> LoadAssets {
+        LoadAssets { progress: ProgressCounter::new(), handle: None }
+    }
+}
+
+impl SimpleState for LoadAssets {
+    fn on_start(&mut self, data: StateData<'_, GameData<'_, '_>>) {
+        let handle = {
+            let meshstore = data.world.write_resource::<AssetStorage<Mesh>>();
+            let loader = data.world.read_resource::<Loader>();
+            loader.load("resources/boid.obj", ObjFormat, (), &mut self.progress, &meshstore)
+        };
+        self.handle = Some(handle)
+    }
+
+    fn update(&mut self, data: &mut StateData<'_, GameData<'_, '_>>) -> SimpleTrans {
+        match self.progress.complete() {
+            Completion::Complete => {
+                match &self.handle {
+                    Some(handle) => {
+                        Trans::Switch(Box::new(Example { handle: handle.clone() }))
+                    }
+                    None => {
+                        println!("Asset handle not aquired");
+                        Trans::Quit
+                    }
+                }
+            }
+            Completion::Failed => {
+                println!("Failed to load assets");
+                Trans::Quit
+            }
+            Completion::Loading => {
+                Trans::None
+            }
+        }
+    }
+}
+
+struct Example {
+    handle: Handle<Mesh>
+}
 
 impl SimpleState for Example {
     fn on_start(&mut self, data: StateData<'_, GameData<'_, '_>>) {
         data.world.add_resource(ClosenessThreshold(10.0));
         data.world.add_resource(SeparationDistance(2.0));
         data.world.add_resource(CentreOfFlockValue(Point2::origin()));
-        let mut progress = ProgressCounter::new();
-        let handle = {
-            let meshstore = data.world.write_resource::<AssetStorage<Mesh>>();
-            let loader = data.world.read_resource::<Loader>();
-            loader.load("resources/boid.obj", ObjFormat, (), &mut progress, &meshstore)
-        };
         let mut rng = rand::thread_rng();
         data.world.create_entity().with(Camera::from(Projection::orthographic(0.0, 100.0, 100.0, 0.0))).with(Transform::default()).build();
         data.world.create_entity().with(Light::Sun(SunLight::default())).with(Transform::default()).build();
         for _ in 0..5 {
-            make_a_boid(data.world, Pos(Point2::origin()), Vel(Vec2::new(rng.gen_range(-5.75, 5.75), rng.gen_range(-5.75, 5.75))), handle.clone());
+            make_a_boid(data.world, Pos(Point2::origin()), Vel(Vec2::new(rng.gen_range(-5.75, 5.75), rng.gen_range(-5.75, 5.75))), self.handle.clone());
         }
     }
 }
@@ -46,7 +88,7 @@ fn main() -> amethyst::Result<()> {
 
     let pipe = Pipeline::build().with_stage(
         Stage::with_backbuffer()
-            .clear_target([0.00196, 0.23726, 0.21765, 1.0], 1.0)
+            .clear_target([0.0, 0.0, 0.0, 1.0], 1.0)
             .with_pass(DrawShaded::<PosNormTex>::new())
     );
 
@@ -55,7 +97,7 @@ fn main() -> amethyst::Result<()> {
         .with_bundle(RenderBundle::new(pipe, Some(config)))?
         .with_bundle(TransformBundle::new())?
         .with_bundle(BoidsBundle)?;
-    let mut game = Application::new("./", Example, game_data)?;
+    let mut game = Application::new("./", LoadAssets::new(), game_data)?;
 
     game.run();
 
@@ -356,7 +398,7 @@ impl <'a, 'b> SystemBundle<'a, 'b> for BoidsBundle {
     }
 }
 
-fn make_a_boid<A: Asset>(world: &mut World, position: Pos, velocity: Vel, handle: Handle<A>) {
+fn make_a_boid(world: &mut World, position: Pos, velocity: Vel, handle: Handle<Mesh>) {
     let transform = {
         let translation = Translation::from(Vector3::new(position.0.x, position.0.y, 0.0));
         let rotation = UnitQuaternion::from_axis_angle(&Unit::new_normalize(Vector3::new(velocity.0.x, velocity.0.y, 0.0)), 0.0);
