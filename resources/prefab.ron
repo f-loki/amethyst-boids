@@ -9,7 +9,7 @@ Prefab (
         ),
         (
             data: (
-                gltf: File("resources/boid.gltf", GltfSceneFormat, (
+                gltf: File("boid.gltf", GltfSceneFormat, (
                     load_animations: false,
                     flip_v_coord: true,
                 )),

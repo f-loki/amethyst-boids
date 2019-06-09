@@ -1,9 +1,9 @@
 use amethyst::{
     prelude::*,
     assets::{Handle},
-    renderer::{Camera, Mesh},
+    renderer::{camera::Camera, Mesh},
     ecs::*,
-    core::transform::{Transform},
+    core::{transform::{Transform}},
 };
 use nalgebra::{Vector2, Vector3, Point2, UnitQuaternion, Unit, Translation};
 use rayon::iter::ParallelIterator;
@@ -259,7 +259,7 @@ impl <'a> System<'a> for SyncWithTransform {
         for (transform, pos, vel) in (&mut transformdata, &posdata, &veldata).join() {
             let t_pos = Vector3::new(pos.0.x, pos.0.y,0.0);
             let rot = UnitQuaternion::from_axis_angle(&Unit::new_normalize(Vector3::new(vel.0.x, vel.0.y, 0.0)), 0.0);
-            transform.set_position(t_pos);
+            transform.set_translation(t_pos);
             transform.set_rotation(rot);
         }
     }
@@ -278,8 +278,8 @@ impl <'a> System<'a> for SyncCameraWithCentre {
         if let Some(ref flockval) = *flockval_opt {
             for (transform, _) in (&mut transdata, &cameradata).join() {
                 let transform_mut = transform.translation_mut();
-                transform_mut.x = flockval.0.coords.x;
-                transform_mut.y = flockval.0.coords.y;
+                transform_mut.x = flockval.0.coords.x.into();
+                transform_mut.y = flockval.0.coords.y.into();
             }
         }
     }
@@ -288,7 +288,7 @@ impl <'a> System<'a> for SyncCameraWithCentre {
 pub struct BoidsBundle;
 
 impl <'a, 'b> SystemBundle<'a, 'b> for BoidsBundle {
-    fn build(self, builder: &mut DispatcherBuilder<'a, 'b>) -> amethyst::core::bundle::Result<()> {
+    fn build(self, builder: &mut DispatcherBuilder<'a, 'b>) -> amethyst::Result<()> {
         builder.add(ComputeClose, "compute_close", &[]);
         builder.add(Separation, "separation", &["compute_close"]);
         builder.add(Alignment, "alignment", &["compute_close"]);

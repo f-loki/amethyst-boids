@@ -5,7 +5,12 @@ authors = []
 edition = "2018"
 
 [dependencies]
-amethyst = "0.10.0"
-nalgebra = "0.16.13"
+nalgebra = "*"
 rayon = "*"
 rand = "*"
+crossbeam-channel = "0.3.8"
+
+[dependencies.amethyst]
+git = "https://github.com/amethyst/amethyst"
+rev = "d8d8147c9f9ee6cffac433dc37acc85db7238ce4"
+features = ["gltf", "vulkan"]
