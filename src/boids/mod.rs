@@ -1,7 +1,7 @@
 use amethyst::{
     prelude::*,
-    assets::{Handle},
-    renderer::{camera::Camera, Mesh},
+    assets::{Handle, Asset},
+    renderer::{camera::Camera},
     ecs::*,
     core::{transform::{Transform}},
 };
@@ -303,7 +303,7 @@ impl <'a, 'b> SystemBundle<'a, 'b> for BoidsBundle {
     }
 }
 
-pub fn make_a_boid(world: &mut World, position: Pos, velocity: Vel, handle: Handle<Mesh>) {
+pub fn make_a_boid<A: Asset>(world: &mut World, position: Pos, velocity: Vel, handle: Handle<A>) {
     let transform = {
         let translation = Translation::from(Vector3::new(position.0.x, position.0.y, 0.0));
         let rotation = UnitQuaternion::from_axis_angle(&Unit::new_normalize(Vector3::new(velocity.0.x, velocity.0.y, 0.0)), 0.0);

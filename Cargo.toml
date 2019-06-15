@@ -12,5 +12,5 @@ crossbeam-channel = "0.3.8"
 
 [dependencies.amethyst]
 git = "https://github.com/amethyst/amethyst"
-rev = "d8d8147c9f9ee6cffac433dc37acc85db7238ce4"
+rev = "84707f7"
 features = ["gltf", "vulkan"]

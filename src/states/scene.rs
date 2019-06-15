@@ -3,8 +3,7 @@ use amethyst::{
     assets::{Handle},
     renderer::{
         camera::{Camera, Projection},  
-        light::{PointLight, Light}, 
-        Mesh
+        light::{PointLight, Light},
     },
     core::transform::{Transform},
     gltf::*,
@@ -34,7 +33,7 @@ impl SimpleState for MainScene {
         data.world.create_entity().with(Camera::from(Projection::orthographic(0.0, 100.0, 0.0, 100.0, 0.1, 2000.0))).with(Transform::default()).build();
         data.world.create_entity().with(Light::Point(PointLight::default())).with(Transform::default()).build();
         for _ in 0..5 {
-            // make_a_boid(data.world, Pos(Point2::origin()), Vel(Vec2::new(rng.gen_range(-5.75, 5.75), rng.gen_range(-5.75, 5.75))), self.handle.clone());
+            make_a_boid(data.world, Pos(Point2::origin()), Vel(Vec2::new(rng.gen_range(-5.75, 5.75), rng.gen_range(-5.75, 5.75))), self.gltf_scene.clone());
         }
     }
 }

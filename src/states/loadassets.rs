@@ -1,8 +1,7 @@
 use amethyst::{
     prelude::*,
-    assets::{AssetStorage, PrefabLoader, Handle, ProgressCounter, Completion},
-    gltf::*,
-    renderer::{Mesh, Material},
+    assets::{PrefabLoader, Handle, ProgressCounter, Completion},
+    gltf::*
 };
 
 pub struct LoadAssets {
