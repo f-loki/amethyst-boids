@@ -10,8 +10,7 @@ rayon = "*"
 rand = "*"
 
 [dependencies.amethyst]
-git = "https://github.com/amethyst/amethyst"
-rev = "1ef254d"
+version = "0.11.0"
 features = ["gltf", "vulkan"]
 
 [dependencies.shred]
