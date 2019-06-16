@@ -298,7 +298,7 @@ impl <'a, 'b> SystemBundle<'a, 'b> for BoidsBundle {
         builder.add(SyncWithTransform, "sync_with_transform", &["movement"]);
         builder.add(CentreOfFlock, "centre_of_flock", &[]);
         builder.add(SyncCameraWithCentre, "sync_camera_with_centre", &["centre_of_flock"]);
-        // builder.add(ReportEndCycle, "report_end", &["movement", "centre_of_flock", "sync_with_transform", "sync_camera_with_centre"]);
+        builder.add(ReportEndCycle, "report_end", &["movement", "centre_of_flock", "sync_with_transform", "sync_camera_with_centre"]);
         Ok(())
     }
 }

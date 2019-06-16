@@ -8,9 +8,12 @@ edition = "2018"
 nalgebra = "*"
 rayon = "*"
 rand = "*"
-crossbeam-channel = "0.3.8"
 
 [dependencies.amethyst]
 git = "https://github.com/amethyst/amethyst"
-rev = "84707f7"
+rev = "1ef254d"
 features = ["gltf", "vulkan"]
+
+[dependencies.shred]
+version = "*"
+features = ["nightly"]
