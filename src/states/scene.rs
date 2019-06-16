@@ -30,9 +30,11 @@ impl SimpleState for MainScene {
         data.world.add_resource(SeparationDistance(2.0));
         data.world.add_resource(CentreOfFlockValue(Point2::origin()));
         let mut rng = rand::thread_rng();
-        data.world.create_entity().with(Camera::from(Projection::orthographic(0.0, 100.0, 0.0, 100.0, 0.1, 2000.0))).with(Transform::default()).build();
+        let mut camera_transform = Transform::default();
+        camera_transform.set_translation_xyz(0.0, 0.0, 10.0);
+        data.world.create_entity().with(Camera::from(Projection::perspective(1.3, 1.0471975512, 0.1, 2000.0))).with(camera_transform).build();
         data.world.create_entity().with(Light::Point(PointLight::default())).with(Transform::default()).build();
-        for _ in 0..20 {
+        for _ in 0..10 {
             make_a_boid(data.world, Pos(Point2::origin()), Vel(Vec2::new(rng.gen_range(-5.75, 5.75), rng.gen_range(-5.75, 5.75))), self.gltf_scene.clone());
         }
     }

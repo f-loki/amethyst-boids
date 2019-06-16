@@ -3,7 +3,7 @@ use amethyst::{
     assets::{Handle, Asset},
     renderer::{camera::Camera},
     ecs::*,
-    core::{transform::{Transform}},
+    core::{transform::{Transform}, Float},
 };
 use nalgebra::{Vector2, Vector3, Point2, UnitQuaternion, Unit, Translation};
 use rayon::iter::ParallelIterator;
@@ -277,9 +277,11 @@ impl <'a> System<'a> for SyncCameraWithCentre {
     fn run(&mut self, (mut transdata, cameradata, flockval_opt): Self::SystemData) {
         if let Some(ref flockval) = *flockval_opt {
             for (transform, _) in (&mut transdata, &cameradata).join() {
-                let transform_mut = transform.translation_mut();
-                transform_mut.x = flockval.0.coords.x.into();
-                transform_mut.y = flockval.0.coords.y.into();
+                let translate_mut = transform.translation_mut();
+                translate_mut.x = flockval.0.coords.x.into();
+                translate_mut.y = flockval.0.coords.y.into();
+                let placevec: Vector3<Float> = Vector3::new(flockval.0.coords.x.into(), flockval.0.y.into(), 0.0.into());
+                transform.face_towards(placevec, Vector3::y());
             }
         }
     }
@@ -305,7 +307,7 @@ impl <'a, 'b> SystemBundle<'a, 'b> for BoidsBundle {
 
 pub fn make_a_boid<A: Asset>(world: &mut World, position: Pos, velocity: Vel, handle: Handle<A>) {
     let transform = {
-        let translation = Translation::from(Vector3::new(position.0.x, position.0.y, 0.0));
+        let translation = Translation::from(Vector3::new(position.0.x, position.0.y, -10.0));
         let rotation = UnitQuaternion::from_axis_angle(&Unit::new_normalize(Vector3::new(velocity.0.x, velocity.0.y, 0.0)), 0.0);
         Transform::new(translation, rotation, Vector3::new(1.0, 1.0, 1.0))
     };
