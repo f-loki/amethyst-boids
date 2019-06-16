@@ -31,7 +31,6 @@ impl SimpleState for LoadAssets {
             Completion::Complete => {
                 match &self.gltf_scene {
                     Some(gltf_scene) => {
-                        println!("Loaded gltf file");
                         Trans::Switch(Box::new(crate::states::scene::MainScene::new(gltf_scene.clone())))
                     }
                     None => {

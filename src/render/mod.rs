@@ -5,7 +5,7 @@ use amethyst::{
         SystemData,
     },
     renderer::{
-        pass::{DrawPbrTransparentDesc},
+        pass::{DrawPbrTransparentDesc, DrawSkyboxDesc, DrawPbrDesc},
         types::DefaultBackend as Backend,
         GraphCreator,
         GraphBuilder,
@@ -79,7 +79,9 @@ impl GraphCreator<Backend> for BoidyGraphBuilder {
             let pass = graph_builder.add_node(
                 SubpassBuilder::new()
                     // Using PBR rather than DrawFlat here
-                    .with_group(DrawPbrTransparentDesc::new().builder())
+                    .with_group(DrawPbrDesc::skinned().builder())
+                    .with_group(DrawSkyboxDesc::new().builder())
+                    .with_group(DrawPbrTransparentDesc::skinned().builder())
                     .with_color(color)
                     .with_depth_stencil(depth)
                     .into_pass(),
