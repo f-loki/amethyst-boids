@@ -1,11 +1,11 @@
 use amethyst::{
     prelude::*,
     assets::{Handle, Asset},
-    renderer::{camera::Camera},
+    renderer::{camera::Camera, visibility::BoundingSphere},
     ecs::*,
     core::{transform::{Transform}, Float},
 };
-use nalgebra::{Vector2, Vector3, Point2, UnitQuaternion, Unit, Translation};
+use nalgebra::{Vector2, Vector3, Point2, Point3, UnitQuaternion, Unit, Translation};
 use rayon::iter::ParallelIterator;
 use amethyst::core::SystemBundle;
 
@@ -144,6 +144,7 @@ impl <'a> System<'a> for Separation {
                 posdata.join().get(*close, &entities).and_then(|a| {
                     if nalgebra::distance(&a.0, &pos.0) <= septhresh.0 {
                         Some(pos.0 - a.0)
+                        // Some(a.0 - pos.0)
                     } else {
                         None
                     }
@@ -258,7 +259,8 @@ impl <'a> System<'a> for SyncWithTransform {
     fn run(&mut self, (mut transformdata, posdata, veldata): Self::SystemData) {
         for (transform, pos, vel) in (&mut transformdata, &posdata, &veldata).join() {
             let t_pos = Vector3::new(pos.0.x, pos.0.y,0.0);
-            let rot = UnitQuaternion::from_axis_angle(&Unit::new_normalize(Vector3::new(vel.0.x, vel.0.y, 0.0)), 0.0);
+            // let rot = UnitQuaternion::from_axis_angle(&Unit::new_normalize(Vector3::new(vel.0.x, vel.0.y, 0.0)), 0.0);
+            let rot = UnitQuaternion::from_axis_angle(&Unit::new_normalize(Vector3::new(0.0, vel.0.x, vel.0.y)), (vel.0.x.powi(2) + vel.0.y.powi(2)).sqrt());
             transform.set_translation(t_pos);
             transform.set_rotation(rot);
         }
@@ -280,8 +282,7 @@ impl <'a> System<'a> for SyncCameraWithCentre {
                 let translate_mut = transform.translation_mut();
                 translate_mut.x = flockval.0.coords.x.into();
                 translate_mut.y = flockval.0.coords.y.into();
-                let placevec: Vector3<Float> = Vector3::new(flockval.0.coords.x.into(), flockval.0.y.into(), 0.0.into());
-                transform.face_towards(placevec, Vector3::y());
+                
             }
         }
     }
@@ -307,9 +308,9 @@ impl <'a, 'b> SystemBundle<'a, 'b> for BoidsBundle {
 
 pub fn make_a_boid<A: Asset>(world: &mut World, position: Pos, velocity: Vel, handle: Handle<A>) {
     let transform = {
-        let translation = Translation::from(Vector3::new(position.0.x, position.0.y, -10.0));
+        let translation = Translation::from(Vector3::new(position.0.x, position.0.y, -20.0));
         let rotation = UnitQuaternion::from_axis_angle(&Unit::new_normalize(Vector3::new(velocity.0.x, velocity.0.y, 0.0)), 0.0);
-        Transform::new(translation, rotation, Vector3::new(1.0, 1.0, 1.0))
+        Transform::new(translation, rotation, Vector3::new(0.1, 0.1, 0.1))
     };
     world
         .create_entity()
@@ -320,6 +321,11 @@ pub fn make_a_boid<A: Asset>(world: &mut World, position: Pos, velocity: Vel, ha
         .with(CohesionVector(Vec2::zeros()))
         .with(AlignmentVector(Vec2::zeros()))
         .with(transform)
+        .with(BoundingSphere::new(Point3::new(0.0.into(), 0.0.into(), 0.0.into()), 10.0))
         .with(handle)
         .build();
+}
+
+pub fn make_an_asset_entity<A: Asset>(world: &mut World, transform: Transform, handle: Handle<A>) -> Entity {
+    world.create_entity().with(transform).with(handle).build()
 }

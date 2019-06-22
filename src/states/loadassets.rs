@@ -31,6 +31,7 @@ impl SimpleState for LoadAssets {
             Completion::Complete => {
                 match &self.gltf_scene {
                     Some(gltf_scene) => {
+                        println!("Asset loaded");
                         Trans::Switch(Box::new(crate::states::scene::MainScene::new(gltf_scene.clone())))
                     }
                     None => {

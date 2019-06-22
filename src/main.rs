@@ -17,10 +17,6 @@ use amethyst::{
 use render::BoidyGraphBuilder;
 use states::loadassets::LoadAssets;
 use boids::BoidsBundle;
-
-pub struct Dummy;
-
-impl SimpleState for Dummy {}
  
 fn main() -> amethyst::Result<()> {
     amethyst::start_logger(Default::default());

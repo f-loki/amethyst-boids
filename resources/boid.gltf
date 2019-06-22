@@ -1,100 +1,117 @@
 {
-  "asset": {
-    "generator": "Khronos glTF Blender I/O v0.9.4",
-    "version": "2.0"
-  },
-  "scene": 0,
-  "scenes": [
-    {
-      "name": "Scene",
-      "nodes": [
-        0
-      ]
-    }
-  ],
-  "nodes": [
-    {
-      "mesh": 0,
-      "name": "Cone"
-    }
-  ],
-  "meshes": [
-    {
-      "name": "Cone",
-      "primitives": [
+    "asset" : {
+        "generator" : "Khronos glTF Blender I/O v0.9.17",
+        "version" : "2.0"
+    },
+    "scene" : 0,
+    "scenes" : [
         {
-          "attributes": {
-            "POSITION": 0,
-            "NORMAL": 1,
-            "TEXCOORD_0": 2
-          },
-          "indices": 3
+            "name" : "Scene",
+            "nodes" : [
+                0
+            ]
         }
-      ]
-    }
-  ],
-  "accessors": [
-    {
-      "bufferView": 0,
-      "componentType": 5126,
-      "count": 32,
-      "max": [
-        1,
-        1,
-        1
-      ],
-      "min": [
-        -1,
-        -1,
-        -1
-      ],
-      "type": "VEC3"
-    },
-    {
-      "bufferView": 1,
-      "componentType": 5126,
-      "count": 32,
-      "type": "VEC3"
-    },
-    {
-      "bufferView": 2,
-      "componentType": 5126,
-      "count": 32,
-      "type": "VEC2"
-    },
-    {
-      "bufferView": 3,
-      "componentType": 5123,
-      "count": 42,
-      "type": "SCALAR"
-    }
-  ],
-  "bufferViews": [
-    {
-      "buffer": 0,
-      "byteLength": 384,
-      "byteOffset": 0
-    },
-    {
-      "buffer": 0,
-      "byteLength": 384,
-      "byteOffset": 384
-    },
-    {
-      "buffer": 0,
-      "byteLength": 256,
-      "byteOffset": 768
-    },
-    {
-      "buffer": 0,
-      "byteLength": 84,
-      "byteOffset": 1024
-    }
-  ],
-  "buffers": [
-    {
-      "uri": "boid_data.bin",
-      "byteLength": 1108
-    }
-  ]
+    ],
+    "nodes" : [
+        {
+            "mesh" : 0,
+            "name" : "Cone"
+        }
+    ],
+    "materials" : [
+        {
+            "doubleSided" : true,
+            "name" : "Material.001",
+            "pbrMetallicRoughness" : {
+                "baseColorFactor" : [
+                    0.800000011920929,
+                    0.800000011920929,
+                    0.800000011920929,
+                    1
+                ],
+                "metallicFactor" : 0,
+                "roughnessFactor" : 0.5
+            }
+        }
+    ],
+    "meshes" : [
+        {
+            "name" : "Cone",
+            "primitives" : [
+                {
+                    "attributes" : {
+                        "POSITION" : 0,
+                        "NORMAL" : 1,
+                        "TEXCOORD_0" : 2
+                    },
+                    "indices" : 3,
+                    "material" : 0
+                }
+            ]
+        }
+    ],
+    "accessors" : [
+        {
+            "bufferView" : 0,
+            "componentType" : 5126,
+            "count" : 32,
+            "max" : [
+                1,
+                1,
+                1
+            ],
+            "min" : [
+                -1,
+                -1,
+                -1
+            ],
+            "type" : "VEC3"
+        },
+        {
+            "bufferView" : 1,
+            "componentType" : 5126,
+            "count" : 32,
+            "type" : "VEC3"
+        },
+        {
+            "bufferView" : 2,
+            "componentType" : 5126,
+            "count" : 32,
+            "type" : "VEC2"
+        },
+        {
+            "bufferView" : 3,
+            "componentType" : 5123,
+            "count" : 42,
+            "type" : "SCALAR"
+        }
+    ],
+    "bufferViews" : [
+        {
+            "buffer" : 0,
+            "byteLength" : 384,
+            "byteOffset" : 0
+        },
+        {
+            "buffer" : 0,
+            "byteLength" : 384,
+            "byteOffset" : 384
+        },
+        {
+            "buffer" : 0,
+            "byteLength" : 256,
+            "byteOffset" : 768
+        },
+        {
+            "buffer" : 0,
+            "byteLength" : 84,
+            "byteOffset" : 1024
+        }
+    ],
+    "buffers" : [
+        {
+            "byteLength" : 1108,
+            "uri" : "data:application/octet-stream;base64,AAAAAAAAgL8AAIC/AAAAAAAAgD8AAACA8wQ1PwAAgL/zBDW/8wQ1PwAAgL/zBDW/AAAAAAAAgD8AAACAAACAPwAAgL8uvTszAACAPwAAgL8uvTszAAAAAAAAgD8AAACA8wQ1PwAAgL/zBDU/8wQ1PwAAgL/zBDU/AAAAAAAAgD8AAACALr27swAAgL8AAIA/Lr27swAAgL8AAIA/AAAAAAAAgD8AAACA9QQ1vwAAgL/xBDU/9QQ1vwAAgL/xBDU/AAAAAAAAgD8AAACAAACAvwAAgL8u3kyyAACAvwAAgL8u3kyyAAAAAAAAgD8AAACA9QQ1vwAAgL/yBDW/9QQ1vwAAgL/yBDW/AAAAAAAAgD8AAACAAAAAAAAAgL8AAIC/8wQ1PwAAgL/zBDW/9QQ1vwAAgL/yBDW/AAAAAAAAgL8AAIC/AACAPwAAgL8uvTszAACAvwAAgL8u3kyy9QQ1vwAAgL/xBDU/8wQ1PwAAgL/zBDU/Lr27swAAgL8AAIA/dt+xPim21j4ptla/dt+xPim21j4ptla/dt+xPim21j4ptla/KbZWPym21j5137G+KbZWPym21j5137G+KbZWPym21j5137G+KLZWPyi21j5237E+KLZWPyi21j5237E+KLZWPyi21j5237E+dd+xPim21j4ptlY/dd+xPim21j4ptlY/dd+xPim21j4ptlY/eN+xvie21j4ntlY/eN+xvie21j4ntlY/eN+xvie21j4ntlY/KLZWvyi21j5y37E+KLZWvyi21j5y37E+KLZWvyi21j5y37E+KLZWvyi21j5x37G+KLZWvyi21j5x37G+KLZWvyi21j5x37G+dd+xvie21j4ntla/dd+xvie21j4ntla/dd+xvie21j4ntla/tsOHM///f78AAACAtsOHM///f78AAACAtsOHM///f78AAACAtsOHM///f78AAACAtsOHM///f78AAACAtsOHM///f78AAACAtsOHM///f78AAACAtsOHM///f78AAACAAACAPlyPAj8AAIA+AABAP6jj1j4sjhQ/qOPWPiyOFD8AAIA+AABAP0jh+j4AAEA/SOH6PgAAQD8AAIA+AABAP6jj1j7UcWs/qOPWPtRxaz8AAIA+AABAP///fz6kcH0///9/PqRwfT8AAIA+AABAP15xpD3UcWs/XnGkPdRxaz8AAIA+AABAPxDXIzwAAEA/ENcjPAAAQD8AAIA+AABAP15xpD0sjhQ/XnGkPSyOFD8AAIA+AABAPwAAgD5cjwI/1HFrPyyOFD8sjhQ/LI4UPwAAQD9cjwI/pHB9PwAAQD9cjwI/AABAPyyOFD/UcWs/1HFrP9Rxaz8AAEA/pHB9PwAAAQACAAMABAAFAAYABwAIAAkACgALAAwADQAOAA8AEAARABIAEwAUABUAFgAXABgAGQAaABsAGQAYABsAHAAZABsAHQAcAB4AHQAbAB4AHwAdAA=="
+        }
+    ]
 }
