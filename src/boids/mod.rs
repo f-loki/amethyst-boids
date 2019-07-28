@@ -59,6 +59,13 @@ impl Component for AlignmentVector {
     type Storage = VecStorage<Self>;
 }
 
+#[derive(Debug)]
+pub struct CollisionVector(Vec2);
+
+impl Component for CollisionVector {
+    type Storage = VecStorage<Self>;
+}
+
 // Systems
 
 #[derive(Debug)]
@@ -149,7 +156,7 @@ impl <'a> System<'a> for Separation {
                         None
                     }
                 })
-            }).fold(Vec2::zeros(), |acc, a| acc - a);
+            }).fold(Vec2::zeros(), |acc, a| acc + a);
         }
     }
 }
@@ -169,9 +176,9 @@ impl <'a> System<'a> for Cohesion {
             if !closest.0.is_empty() {
                 // An amalgam of mathematics, that supposedly produces a vector
                 // that shoves towards the centre of the nearby flockmates
-                cohesion.0 = closest.0.iter().filter_map(|close| {
+                cohesion.0 = (pos.0.coords - (closest.0.iter().filter_map(|close| {
                     posdata.join().get(*close, &entities).map(|a| a.0.coords + pos.0.coords)
-                }).sum::<Vec2>() / closest.0.len() as f32 - pos.0.coords;
+                }).sum::<Vec2>() / closest.0.len() as f32)).normalize();
             } else {
                 cohesion.0 *= 0.0;
             }
@@ -202,6 +209,76 @@ impl <'a> System<'a> for Alignment {
     }
 }
 
+#[derive(Default)]
+pub struct CollisionBounds {
+    pub x_min: f32,
+    pub x_max: f32,
+    pub y_min: f32,
+    pub y_max: f32,
+    pub threshold: f32,
+}
+
+impl CollisionBounds {
+
+    pub fn new_rect_origin(width: f32, height: f32, origin: (f32, f32), threshold: f32) -> CollisionBounds {
+        CollisionBounds {
+            x_min: (width / -2.0) + origin.0,
+            x_max: (width / 2.0) + origin.0,
+            y_min: (height / -2.0) + origin.0,
+            y_max: (height / 2.0) + origin.0,
+            threshold
+        }
+    }
+    
+    pub fn new_rect(width: f32, height: f32, threshold: f32) -> CollisionBounds {
+        Self::new_rect_origin(width, height, (0.0, 0.0), threshold)
+    }
+
+    pub fn closest_boxpoint(&self, pos: &Vec2) -> Option<Vec2> {
+        let mut boxpoint = pos.clone();
+        if pos.x <= self.x_min {
+            boxpoint.x = self.x_min;
+        } else if pos.x >= self.x_max {
+            boxpoint.x = self.x_max;
+        }
+        if pos.y <= self.y_min {
+            boxpoint.y = self.y_min;
+        } else if pos.y >= self.y_max {
+            boxpoint.y = self.y_max;
+        }
+        if boxpoint != *pos { Some(boxpoint) } else { None }
+    }
+
+    pub fn compute_collision_vector(&self, pos: &Pos, vel: &Vel) -> Vec2 {
+        let mut avoidance = Vec2::new(0.0, 0.0);
+        let predicted: Point2<f32> = pos.0 + vel.0;
+        if let Some(boxpoint) = self.closest_boxpoint(&predicted.coords) {
+            // mathematics nabbed from https://gamedevelopment.tutsplus.com/tutorials/understanding-steering-behaviors-collision-avoidance--gamedev-7777
+            avoidance = (boxpoint - predicted.coords);
+        }
+        avoidance
+    }
+}
+
+pub struct CollisionAvoidance;
+
+impl <'a> System<'a> for CollisionAvoidance {
+    type SystemData =
+        ( ReadStorage<'a, Pos>
+        , ReadStorage<'a, Vel>
+        , WriteStorage<'a, CollisionVector>
+        , Read<'a, CollisionBounds>
+    );
+
+    fn run(&mut self, (posdata, veldata, mut collisiondata, bounds): Self::SystemData) {
+        (&posdata, &veldata, &mut collisiondata).par_join().for_each(
+            |(pos, vel, mut collision)| {
+                collision.0 = bounds.compute_collision_vector(pos, vel)
+            }
+        )
+    }
+}
+
 pub struct ApplyAdjustments;
 
 impl <'a> System<'a> for ApplyAdjustments {
@@ -210,12 +287,13 @@ impl <'a> System<'a> for ApplyAdjustments {
         , ReadStorage<'a, SeparationVector>
         , ReadStorage<'a, CohesionVector>
         , ReadStorage<'a, AlignmentVector>
+        , ReadStorage<'a, CollisionVector>
     );
 
-    fn run(&mut self, (mut veldata, sepdata, cohdata, alidata): Self::SystemData) {
-        (&mut veldata, &sepdata, &cohdata, &alidata).par_join().for_each(
-            |(vel, separation, cohesion, alignment)| {
-                vel.0 += (separation.0 * 1.0) + (cohesion.0 * 0.01) + (alignment.0 * 1.0);
+    fn run(&mut self, (mut veldata, sepdata, cohdata, alidata, collidedata): Self::SystemData) {
+        (&mut veldata, &sepdata, &cohdata, &alidata, &collidedata).par_join().for_each(
+            |(vel, separation, cohesion, alignment, collision_avoid)| {
+                vel.0 += (separation.0 * 1.0) + (cohesion.0 * 0.025) + (alignment.0 * 0.5) + (collision_avoid.0 * 1.0);
                 vel.0.normalize_mut();
             }
         );
@@ -259,8 +337,8 @@ impl <'a> System<'a> for SyncWithTransform {
     fn run(&mut self, (mut transformdata, posdata, veldata): Self::SystemData) {
         for (transform, pos, vel) in (&mut transformdata, &posdata, &veldata).join() {
             let t_pos = Vector3::new(pos.0.x, pos.0.y,0.0);
-            // let rot = UnitQuaternion::from_axis_angle(&Unit::new_normalize(Vector3::new(vel.0.x, vel.0.y, 0.0)), 0.0);
-            let rot = UnitQuaternion::from_axis_angle(&Unit::new_normalize(Vector3::new(0.0, vel.0.x, vel.0.y)), (vel.0.x.powi(2) + vel.0.y.powi(2)).sqrt());
+            let rot = UnitQuaternion::from_axis_angle(&Unit::new_normalize(Vector3::new(0.0, 1.0, 0.0)), (vel.0.x.powi(2) + vel.0.y.powi(2)).sqrt());
+            // let rot = UnitQuaternion::from_axis_angle(&Unit::new_normalize(Vector3::new(0.0, vel.0.x, vel.0.y)), (vel.0.x.powi(2) + vel.0.y.powi(2)).sqrt());
             transform.set_translation(t_pos);
             transform.set_rotation(rot);
         }
@@ -296,12 +374,13 @@ impl <'a, 'b> SystemBundle<'a, 'b> for BoidsBundle {
         builder.add(Separation, "separation", &["compute_close"]);
         builder.add(Alignment, "alignment", &["compute_close"]);
         builder.add(Cohesion, "cohesion", &["compute_close"]);
-        builder.add(ApplyAdjustments, "apply_adjustments", &["separation", "alignment", "cohesion"]);
+        builder.add(CollisionAvoidance, "avoidance", &["compute_close"]);
+        builder.add(ApplyAdjustments, "apply_adjustments", &["separation", "alignment", "cohesion", "avoidance"]);
         builder.add(Movement, "movement", &["apply_adjustments"]);
         builder.add(SyncWithTransform, "sync_with_transform", &["movement"]);
         builder.add(CentreOfFlock, "centre_of_flock", &[]);
-        builder.add(SyncCameraWithCentre, "sync_camera_with_centre", &["centre_of_flock"]);
-        builder.add(ReportEndCycle, "report_end", &["movement", "centre_of_flock", "sync_with_transform", "sync_camera_with_centre"]);
+        // builder.add(SyncCameraWithCentre, "sync_camera_with_centre", &["centre_of_flock"]);
+        // builder.add(ReportEndCycle, "report_end", &["movement", "centre_of_flock", "sync_with_transform", "sync_camera_with_centre"]);
         Ok(())
     }
 }
@@ -310,7 +389,7 @@ pub fn make_a_boid<A: Asset>(world: &mut World, position: Pos, velocity: Vel, ha
     let transform = {
         let translation = Translation::from(Vector3::new(position.0.x, position.0.y, -20.0));
         let rotation = UnitQuaternion::from_axis_angle(&Unit::new_normalize(Vector3::new(velocity.0.x, velocity.0.y, 0.0)), 0.0);
-        Transform::new(translation, rotation, Vector3::new(0.1, 0.1, 0.1))
+        Transform::new(translation, rotation, Vector3::new(0.05, 0.05, 0.05))
     };
     world
         .create_entity()
@@ -320,6 +399,7 @@ pub fn make_a_boid<A: Asset>(world: &mut World, position: Pos, velocity: Vel, ha
         .with(SeparationVector(Vec2::zeros()))
         .with(CohesionVector(Vec2::zeros()))
         .with(AlignmentVector(Vec2::zeros()))
+        .with(CollisionVector(Vec2::zeros()))
         .with(transform)
         .with(BoundingSphere::new(Point3::new(0.0.into(), 0.0.into(), 0.0.into()), 10.0))
         .with(handle)
